@@ -173,12 +173,12 @@ This separation is functional rather than cosmetic:
 
 | Area | Implementation |
 | --- | --- |
-| Edge and routing | Nginx, explicit route allowlisting, private upstream network, health checks |
-| Application | Node.js 22, browser-native JavaScript, durable JSON-backed state contracts |
+| Edge and routing | Nginx, normalized token-safe logs, probe and management-route denials, bounded connections, compression, private upstream network, health checks |
+| Application | Node.js 22, browser-native JavaScript, strict host/method/body handling, durable JSON-backed state contracts |
 | Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
 | Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
 | Scene system | Versioned scene schema, responsive framing, hotspot sequences, motion bundles, immutable revisions |
-| Security visibility | Structured event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
+| Security visibility | Ordered asynchronous event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
 | Packaging | Dockerfiles, Docker Compose overlays, digest-pinned base images, deterministic asset archives |
 | Quality gates | Node test runner, syntax checks, manifest/hash verification, container builds, isolated runtime smoke tests |
 | Extension model | Read-only runtime/controller mounts and independently licensed component repositories |
@@ -203,6 +203,12 @@ The platform is designed around explicit trust boundaries:
    that an exploit succeeded.
 8. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
    segmentation belong to reviewed environment-specific configuration.
+9. Public ingress denies the TorrentHarbor management API and strips caller
+   trust headers; management authorization uses the direct peer on the private
+   backend network.
+10. A deployment WAF supplements the portable edge and application checks. New
+    rules remain in observation mode until representative portal, editor, and
+    service flows pass; HSTS is phased in at TLS termination.
 
 Protected local inputs are deliberately excluded from all three repositories:
 
@@ -387,7 +393,10 @@ Gateway, Scene Management, security ledger, asset pipeline, Wolf extension,
 container builds, and combined runtime.
 
 Security monitoring includes configurable Telegram alert policy and delivery
-controls while keeping credentials environment-local. Production environment
+controls while keeping credentials environment-local. The Gateway also
+normalizes access logs to exclude queries and one-time URL tokens, drains event
+writes on shutdown, avoids state rewrites for read-only requests, and applies
+browser isolation and immutable versioned-asset caching. Production environment
 configuration and commercial or locally licensed content remain intentionally
 outside the public source tree.
 
