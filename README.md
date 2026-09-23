@@ -71,14 +71,16 @@ production identity or infrastructure data.
 
 ```mermaid
 flowchart LR
-    Display[Display browser] -->|HTTPS| Edge[Nginx gateway]
-    Phone[Visitor phone] -->|QR and email confirmation| Edge
-    Operator[Authenticated operator] -->|Scene Management| Edge
+    Display[Display browser] -->|public HTTPS| WAF[OWASP CRS WAF<br/>Nginx + ModSecurity]
+    Phone[Visitor phone] -->|QR and email confirmation| WAF
+    WAF -->|loopback HTTPS| Edge[Hardened origin Nginx]
+    Operator[Authenticated operator] -->|private Scene Management route| Edge
 
     Edge -->|private Compose network| Backend[Node.js portal backend]
     Edge -->|approved session only| Service[Private destination]
 
-    Backend --> State[(Scene, session, score, and audit state)]
+    WAF --> WAudit[(Restricted WAF audit)]
+    Backend --> State[(Scene, session, score, and application audit state)]
     Backend --> Mail[SMTP]
     Backend --> Identity[Authentik API]
     Backend -. optional critical alerts .-> Telegram[Telegram Bot API]
@@ -90,16 +92,19 @@ flowchart LR
     classDef edge fill:#dbeafe,stroke:#2563eb,color:#111827
     classDef private fill:#ecfdf5,stroke:#059669,color:#111827
     classDef optional fill:#f3e8ff,stroke:#7c3aed,color:#111827
-    class Edge edge
-    class Backend,State,Mail,Identity,Postgres,Service private
+    class WAF,Edge edge
+    class Backend,State,WAudit,Mail,Identity,Postgres,Service private
     class Wolf optional
 ```
 
-The Nginx container is the only intended public HTTP entrypoint. The Node.js
-backend and identity services remain on private Compose networks. Scene state,
-keys, credentials, licensed audio, GeoIP databases, commercial game data, and
-host-specific policy are mounted at runtime rather than embedded in public
-images.
+For deployments using the tracked WAF component, the WAF Nginx process is the
+only intended public HTTP entrypoint. It embeds ModSecurity and OWASP CRS,
+drops unknown hosts, and forwards accepted traffic to a separate hardened
+origin Nginx listener over loopback. The Node.js backend and identity services
+remain private. Portable deployments may run the origin without the optional
+WAF, but must preserve the same public/private boundary. Scene state, keys,
+credentials, licensed audio, GeoIP databases, commercial game data, and
+host-specific policy are mounted at runtime rather than embedded in images.
 
 ### Access handoff
 
@@ -140,7 +145,7 @@ The platform is intentionally split across three public repositories:
 | Repository | License | Responsibility |
 | --- | --- | --- |
 | [`scene-access-platform`](https://github.com/zipkindev/scene-access-platform) | Apache-2.0 | Compatible component revisions, combined Compose lifecycle, integration CI, synchronization policy, and operator entry point |
-| [`scene-access-gateway`](https://github.com/zipkindev/scene-access-gateway) | Apache-2.0 | Portal frontend, Node.js backend, Scene Management, Authentik contracts, security ledger, artwork, and portable container images |
+| [`scene-access-gateway`](https://github.com/zipkindev/scene-access-gateway) | Apache-2.0 | Portal frontend, Node.js backend, Scene Management, Authentik contracts, security ledger, reusable OWASP CRS WAF component, artwork, and portable container images |
 | [`scene-access-gateway-wolf3d`](https://github.com/zipkindev/scene-access-gateway-wolf3d) | GPL-3.0 | uWolf-derived runtime, CRT integration controller, supported-data manifest, safe game-data importer, and extension tests |
 
 ```mermaid
@@ -173,7 +178,7 @@ This separation is functional rather than cosmetic:
 
 | Area | Implementation |
 | --- | --- |
-| Edge and routing | Nginx, normalized token-safe logs, probe and management-route denials, bounded connections, compression, private upstream network, health checks |
+| Edge and routing | Hardened origin Nginx plus optional OWASP CRS 4.29.0/ModSecurity 3.0.16 WAF, normalized token-safe logs, host/probe/management-route denials, bounded connections, private upstream network, health checks |
 | Application | Node.js 22, browser-native JavaScript, strict host/method/body handling, durable JSON-backed state contracts |
 | Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
 | Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
@@ -187,7 +192,9 @@ This separation is functional rather than cosmetic:
 
 The platform is designed around explicit trust boundaries:
 
-1. Nginx is the only service intended to receive public traffic.
+1. Only the selected edge is intended to receive public traffic: the WAF when
+   enabled, otherwise the portable Nginx gateway. A WAF deployment keeps its
+   separate origin listener private or loopback-only.
 2. The backend administration listener is private and must not be published
    directly.
 3. Authentik remains the identity authority; API credentials are mounted with
