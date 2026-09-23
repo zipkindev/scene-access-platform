@@ -12,10 +12,15 @@ They are Git submodules rather than copied source trees. A platform commit
 therefore records an exact, tested pair of gateway and extension commits while
 each component keeps its own history, license, CI and release documentation.
 
+This platform repository is the primary integration and operator entry point.
+The component repositories remain independently accessible because Git must be
+able to fetch them during a recursive clone; they should not be deleted or made
+private while this repository is public and uses submodules.
+
 ## Clone
 
 ```sh
-git clone --recurse-submodules <platform-repository-url>
+git clone --recurse-submodules https://github.com/zipkindev/scene-access-platform.git
 cd scene-access-platform
 ./scripts/bootstrap.sh
 ```

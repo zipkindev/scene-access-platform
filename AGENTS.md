@@ -179,8 +179,10 @@ Normal consume order is fetch/review components, validate the pair, platform
 pointer commit last. Never treat a changed submodule pointer alone as proof that
 the corresponding component commit was pushed or tested.
 
-The platform currently has no remote. Do not invent one. Add it only when the
-user supplies or confirms its URL.
+The platform remote is
+`https://github.com/zipkindev/scene-access-platform.git`. Keep `origin` pointed
+there. Do not change repository visibility, archive a component repository, or
+rewrite submodule URLs without explicit user approval.
 
 ## Deployment boundary
 
