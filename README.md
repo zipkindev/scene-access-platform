@@ -52,6 +52,11 @@ The protected security console correlates portal visits, QR outcomes, access
 requests, session creation, rejected routes, rate limits, and scanner or
 injection indicators. Optional GeoLite2 enrichment is performed locally; the
 application does not send visitor addresses to a third-party lookup service.
+Operators can configure Telegram alerts for selected severities and categories,
+with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
+override, redaction, delivery status, and a test action in the same console.
+The bot token and numeric destination ID remain mounted secrets and are never
+entered in, stored by, or returned to the browser UI.
 The screenshot uses an RFC-reserved documentation address and contains no
 production identity or infrastructure data.
 
@@ -69,6 +74,7 @@ flowchart LR
     Backend --> State[(Scene, session, score, and audit state)]
     Backend --> Mail[SMTP]
     Backend --> Identity[Authentik API]
+    Backend -. optional critical alerts .-> Telegram[Telegram Bot API]
     Identity --> Postgres[(PostgreSQL)]
 
     Wolf[Optional Wolf3D/Spear extension] -. read-only mounts .-> Backend
@@ -165,7 +171,7 @@ This separation is functional rather than cosmetic:
 | Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
 | Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
 | Scene system | Versioned scene schema, responsive framing, hotspot sequences, motion bundles, immutable revisions |
-| Security visibility | Structured event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment |
+| Security visibility | Structured event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
 | Packaging | Dockerfiles, Docker Compose overlays, digest-pinned base images, deterministic asset archives |
 | Quality gates | Node test runner, syntax checks, manifest/hash verification, container builds, isolated runtime smoke tests |
 | Extension model | Read-only runtime/controller mounts and independently licensed component repositories |
@@ -183,9 +189,11 @@ The platform is designed around explicit trust boundaries:
    addresses, signing keys, or Authentik management tokens.
 5. Security records exclude request bodies, query strings, passwords,
    QR/session tokens, and raw email identities.
-6. Scanner and injection classifications are investigation signals, not claims
+6. Telegram credentials are read from mounted files; alert payloads use the
+   configured masked or country-only source representation.
+7. Scanner and injection classifications are investigation signals, not claims
    that an exploit succeeded.
-7. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
+8. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
    segmentation belong to reviewed environment-specific configuration.
 
 Protected local inputs are deliberately excluded from all three repositories:
@@ -370,10 +378,10 @@ integration workflows. Current local and GitHub CI validation covers the core
 Gateway, Scene Management, security ledger, asset pipeline, Wolf extension,
 container builds, and combined runtime.
 
-Active engineering work includes continued security-monitoring development and
-configurable critical-event alerting. Production environment configuration and
-commercial or locally licensed content remain intentionally outside the public
-source tree.
+Security monitoring includes configurable Telegram alert policy and delivery
+controls while keeping credentials environment-local. Production environment
+configuration and commercial or locally licensed content remain intentionally
+outside the public source tree.
 
 ## Licensing and third-party boundaries
 
