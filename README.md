@@ -26,6 +26,15 @@ For an existing clone:
 git submodule update --init --recursive
 ```
 
+Agents and automation must follow [`AGENTS.md`](AGENTS.md). Its preflight,
+protected-data boundary, repository ownership, validation matrix and publish
+order apply to the platform and both submodules. Verify the workspace layout
+and ignore rules at any time with:
+
+```sh
+./scripts/check-workspace.sh
+```
+
 ## Local configuration boundary
 
 The gateway submodule owns the working `.env` and `.local/` paths. Its
