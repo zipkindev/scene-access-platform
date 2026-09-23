@@ -28,8 +28,9 @@ git submodule update --init --recursive
 
 ## Local configuration boundary
 
-Copy `.env.example` to `.env` and keep real environment values under ignored
-`.env` and `.local/` paths. The same immutable images can then be combined with
+The gateway submodule owns the working `.env` and `.local/` paths. Its
+bootstrap preserves existing values and creates safe defaults only when they
+are absent. The same immutable images can then be combined with
 different runtime configuration:
 
 ```text
@@ -38,7 +39,7 @@ gateway image + Wolf extension mounts + local Compose overlay + secrets/data
 
 Optional local inputs remain in their owning repositories:
 
-- gateway audio source: `gateway/.local/audio-source/`;
+- gateway environment and audio: `gateway/.env` and `gateway/.local/audio-source/`;
 - Wolf/Spear game data: `wolf3d/runtime/` through the extension importer;
 - deployment override: `.local/compose.override.yaml`;
 - GeoIP databases: `.local/geoip/` or another protected configured directory;
@@ -98,4 +99,3 @@ a TrueNAS cutover.
 The platform orchestration files are Apache-2.0. Each submodule retains and
 enforces its own license. Commercial Wolfenstein 3D and Spear of Destiny game
 data are user supplied and are never part of a repository or image release.
-
