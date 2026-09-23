@@ -52,6 +52,10 @@ The protected security console correlates portal visits, QR outcomes, access
 requests, session creation, rejected routes, rate limits, and scanner or
 injection indicators. Optional GeoLite2 enrichment is performed locally; the
 application does not send visitor addresses to a third-party lookup service.
+Scene Management places approximate country, region, city, and ASN context
+beside each public source address and supports removable, composable filters
+for severity, event and alert category, detected country, exact IP, and CIDR
+range.
 Operators can configure Telegram alerts for selected severities and categories,
 with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
 override, redaction, delivery status, and a test action in the same console.
