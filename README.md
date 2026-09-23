@@ -208,7 +208,8 @@ The platform is designed around explicit trust boundaries:
    backend network.
 10. A deployment WAF supplements the portable edge and application checks. New
     rules remain in observation mode until representative portal, editor, and
-    service flows pass; HSTS is phased in at TLS termination.
+    service flows pass; the portable one-day HSTS starter policy is preserved
+    and lengthened at TLS termination only after validation.
 
 Protected local inputs are deliberately excluded from all three repositories:
 
