@@ -55,8 +55,10 @@ application does not send visitor addresses to a third-party lookup service.
 Operators can configure Telegram alerts for selected severities and categories,
 with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
 override, redaction, delivery status, and a test action in the same console.
-The bot token and numeric destination ID remain mounted secrets and are never
-entered in, stored by, or returned to the browser UI.
+The bot token is accepted through a write-only administration field, verified
+with Telegram, stored as a protected server-side file, and never returned to
+the browser. Scene Management discovers the numeric destination ID after the
+operator messages the bot.
 The screenshot uses an RFC-reserved documentation address and contains no
 production identity or infrastructure data.
 
@@ -189,8 +191,9 @@ The platform is designed around explicit trust boundaries:
    addresses, signing keys, or Authentik management tokens.
 5. Security records exclude request bodies, query strings, passwords,
    QR/session tokens, and raw email identities.
-6. Telegram credentials are read from mounted files; alert payloads use the
-   configured masked or country-only source representation.
+6. Telegram credentials are stored as protected server-side files or supplied
+   through optional external mounts; alert payloads use the configured masked
+   or country-only source representation.
 7. Scanner and injection classifications are investigation signals, not claims
    that an exploit succeeded.
 8. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
