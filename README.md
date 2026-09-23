@@ -58,8 +58,12 @@ for severity, event and alert category, detected country, exact IP, and CIDR
 range. MaxMind account onboarding, protected database downloads, updates, and
 credential removal are available in the same console.
 Operators can configure Telegram alerts for selected severities and categories,
-with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
-override, redaction, delivery status, and a test action in the same console.
+with aggregation, target-aware incident deduplication, persistence reminders,
+hourly limits, UTC quiet hours, critical-event override, redaction, delivery
+status, and a test action in the same console. A networkless sidecar normalizes
+the restricted WAF audit stream into the same integrity-protected ledger, so
+operators can filter application and WAF findings separately while retaining
+one investigation and notification surface.
 The bot token is accepted through a write-only administration field, verified
 with Telegram, stored as a protected server-side file, and never returned to
 the browser. Scene Management discovers the numeric destination ID after the
@@ -80,6 +84,9 @@ flowchart LR
     Edge -->|approved session only| Service[Private destination]
 
     WAF --> WAudit[(Restricted WAF audit)]
+    WAudit --> Collector[Networkless telemetry normalizer]
+    Collector --> WFeed[(Sanitized WAF findings)]
+    WFeed --> Backend
     Backend --> State[(Scene, session, score, and application audit state)]
     Backend --> Mail[SMTP]
     Backend --> Identity[Authentik API]
@@ -93,7 +100,7 @@ flowchart LR
     classDef private fill:#ecfdf5,stroke:#059669,color:#111827
     classDef optional fill:#f3e8ff,stroke:#7c3aed,color:#111827
     class WAF,Edge edge
-    class Backend,State,WAudit,Mail,Identity,Postgres,Service private
+    class Backend,State,WAudit,Collector,WFeed,Mail,Identity,Postgres,Service private
     class Wolf optional
 ```
 
@@ -101,7 +108,10 @@ For deployments using the tracked WAF component, the WAF Nginx process is the
 only intended public HTTP entrypoint. It embeds ModSecurity and OWASP CRS,
 drops unknown hosts, and forwards accepted traffic to a separate hardened
 origin Nginx listener over loopback. The Node.js backend and identity services
-remain private. Portable deployments may run the origin without the optional
+remain private. The telemetry normalizer has no network, application state,
+Telegram credentials, or Docker socket; the backend receives only bounded
+findings without headers, bodies, cookies, authorization values, or query
+values. Portable deployments may run the origin without the optional
 WAF, but must preserve the same public/private boundary. Scene state, keys,
 credentials, licensed audio, GeoIP databases, commercial game data, and
 host-specific policy are mounted at runtime rather than embedded in images.
@@ -183,7 +193,7 @@ This separation is functional rather than cosmetic:
 | Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
 | Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
 | Scene system | Versioned scene schema, responsive framing, hotspot sequences, motion bundles, immutable revisions |
-| Security visibility | Ordered asynchronous event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
+| Security visibility | Ordered asynchronous event ledger, bounded retention, sanitized WAF ingestion, application/WAF stream filters, keyed incident deduplication and reminders, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
 | Packaging | Dockerfiles, Docker Compose overlays, digest-pinned base images, deterministic asset archives |
 | Quality gates | Node test runner, syntax checks, manifest/hash verification, container builds, isolated runtime smoke tests |
 | Extension model | Read-only runtime/controller mounts and independently licensed component repositories |
