@@ -55,7 +55,8 @@ application does not send visitor addresses to a third-party lookup service.
 Scene Management places approximate country, region, city, and ASN context
 beside each public source address and supports removable, composable filters
 for severity, event and alert category, detected country, exact IP, and CIDR
-range.
+range. MaxMind account onboarding, protected database downloads, updates, and
+credential removal are available in the same console.
 Operators can configure Telegram alerts for selected severities and categories,
 with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
 override, redaction, delivery status, and a test action in the same console.
@@ -212,7 +213,7 @@ Protected local inputs are deliberately excluded from all three repositories:
 | Wolf/Spear commercial data | `wolf3d/runtime/*.WL*`, `*.SOD`, and `*.SD*` |
 | Platform deployment override | `.local/compose.override.yaml` |
 | TLS, proxy, storage, and network policy | Protected local mounts or target secret/configuration system |
-| GeoIP databases | Protected directory selected by `SAG_GEOIP_DIR` |
+| GeoIP credentials and databases | Protected persistent state, or a read-only directory selected by `SAG_GEOIP_DIR` |
 
 Tracked engine source also lives under `wolf3d/runtime/`; only the commercial
 game-data extensions are ignored. Tests fail if a matching commercial dataset
