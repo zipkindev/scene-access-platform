@@ -3,52 +3,216 @@
 [![Platform CI](https://github.com/zipkindev/scene-access-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/zipkindev/scene-access-platform/actions/workflows/ci.yml)
 [![Gateway](https://img.shields.io/badge/component-Gateway-2563eb.svg)](https://github.com/zipkindev/scene-access-gateway)
 [![Wolf3D](https://img.shields.io/badge/extension-Wolf3D%2FSpear-7c3aed.svg)](https://github.com/zipkindev/scene-access-gateway-wolf3d)
+[![Docker Compose](https://img.shields.io/badge/runtime-Docker%20Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
 
-Scene Access Platform is the integration workspace for the two independently
-maintained repositories that make up the complete project:
+Scene Access Platform is a self-hosted, scene-driven access gateway for private
+applications. It replaces a conventional login landing page with an authored,
+interactive environment: visitors discover a destination, complete its scene
+interaction, approve a short-lived access handoff from a phone, and continue
+to the selected service. Operators manage scenes, destination access requests,
+security events, identity integration, and optional interactive extensions from
+the same system.
 
-- `gateway/` — the Apache-2.0 Scene Access Gateway portal, Scene Management,
-  Authentik integration and portable frontend/backend containers;
-- `wolf3d/` — the GPL-3.0 optional uWolf-derived Wolfenstein 3D and Spear of
-  Destiny extension.
+This repository is the integration and release authority for the project. It
+pins compatible revisions of the core Gateway and the optional Wolf3D/Spear
+extension, assembles their Compose models, and validates the exact combination
+that operators run.
 
-They are Git submodules rather than copied source trees. A platform commit
-therefore records an exact, tested pair of gateway and extension commits while
-each component keeps its own history, license, CI and release documentation.
+## Product overview
 
-This platform repository is the primary integration and operator entry point.
-The component repositories remain independently accessible because Git must be
-able to fetch them during a recursive clone; they should not be deleted or made
-private while this repository is public and uses submodules.
+The platform combines four areas that are often separate systems:
 
-## Architecture
+- **Scene-based access:** responsive visual scenes, destination hotspots,
+  ordered activation sequences, QR challenges, and browser-bound handoffs.
+- **Scene Management:** artwork ingestion, image optimization, TV and phone
+  framing, hotspot authoring, drafts, publishing, revision history, access
+  review, and security monitoring.
+- **Identity-aware proxying:** Authentik-backed identity and group checks,
+  email confirmation, destination-scoped sessions, and short-lived signed
+  assertions for approved upstream services.
+- **Extensible experiences:** a versioned extension boundary for independently
+  licensed browser runtimes, demonstrated by the Wolfenstein 3D and Spear of
+  Destiny integration without distributing commercial game data.
+
+### Scene authoring
+
+![Scene Management configuring an ordered access sequence](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-sequence.png)
+
+Scene Management works in image-relative coordinates so authored hotspots and
+framing survive different viewport sizes. Operators can define up to ten
+ordered interaction points, preview the resulting experience, publish an
+immutable revision, and roll back without rebuilding an image.
+
+### Security operations
+
+![Scene Management security monitoring with sanitized demonstration data](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-security.png)
+
+The protected security console correlates portal visits, QR outcomes, access
+requests, session creation, rejected routes, rate limits, and scanner or
+injection indicators. Optional GeoLite2 enrichment is performed locally; the
+application does not send visitor addresses to a third-party lookup service.
+The screenshot uses an RFC-reserved documentation address and contains no
+production identity or infrastructure data.
+
+## System architecture
+
+```mermaid
+flowchart LR
+    Display[Display browser] -->|HTTPS| Edge[Nginx gateway]
+    Phone[Visitor phone] -->|QR and email confirmation| Edge
+    Operator[Authenticated operator] -->|Scene Management| Edge
+
+    Edge -->|private Compose network| Backend[Node.js portal backend]
+    Edge -->|approved session only| Service[Private destination]
+
+    Backend --> State[(Scene, session, score, and audit state)]
+    Backend --> Mail[SMTP]
+    Backend --> Identity[Authentik API]
+    Identity --> Postgres[(PostgreSQL)]
+
+    Wolf[Optional Wolf3D/Spear extension] -. read-only mounts .-> Backend
+    Local[(Local secrets, licensed media, game data, host policy)] -. runtime mounts .-> Backend
+
+    classDef edge fill:#dbeafe,stroke:#2563eb,color:#111827
+    classDef private fill:#ecfdf5,stroke:#059669,color:#111827
+    classDef optional fill:#f3e8ff,stroke:#7c3aed,color:#111827
+    class Edge edge
+    class Backend,State,Mail,Identity,Postgres,Service private
+    class Wolf optional
+```
+
+The Nginx container is the only intended public HTTP entrypoint. The Node.js
+backend and identity services remain on private Compose networks. Scene state,
+keys, credentials, licensed audio, GeoIP databases, commercial game data, and
+host-specific policy are mounted at runtime rather than embedded in public
+images.
+
+### Access handoff
+
+```mermaid
+sequenceDiagram
+    actor Display as Display browser
+    actor Phone as Visitor phone
+    participant Edge as Nginx gateway
+    participant Portal as Portal backend
+    participant IdP as Authentik
+    participant Mail as SMTP
+    participant App as Private service
+
+    Display->>Edge: Select destination and complete scene interaction
+    Edge->>Portal: Create browser-bound, expiring challenge
+    Portal-->>Display: Reveal short-lived QR code
+    Phone->>Portal: Open QR URL and identify account
+    Portal->>IdP: Verify exact identity and destination membership
+    Portal->>Mail: Send one-time confirmation link
+    Phone->>Portal: Confirm the waiting display
+    Display->>Portal: Poll challenge status
+    Portal-->>Display: Issue destination-scoped session
+    Display->>Edge: Request selected private service
+    Edge->>Portal: Validate session and destination
+    Portal-->>Edge: Return short-lived signed identity assertion
+    Edge->>App: Relay approved request
+```
+
+An access request does not grant access by itself. Unknown or unauthorized
+visitors enter a destination-specific review queue. An operator must approve
+the request and establish the required identity membership before the visitor
+starts a new handoff.
+
+## Repository architecture
+
+The platform is intentionally split across three public repositories:
+
+| Repository | License | Responsibility |
+| --- | --- | --- |
+| [`scene-access-platform`](https://github.com/zipkindev/scene-access-platform) | Apache-2.0 | Compatible component revisions, combined Compose lifecycle, integration CI, synchronization policy, and operator entry point |
+| [`scene-access-gateway`](https://github.com/zipkindev/scene-access-gateway) | Apache-2.0 | Portal frontend, Node.js backend, Scene Management, Authentik contracts, security ledger, artwork, and portable container images |
+| [`scene-access-gateway-wolf3d`](https://github.com/zipkindev/scene-access-gateway-wolf3d) | GPL-3.0 | uWolf-derived runtime, CRT integration controller, supported-data manifest, safe game-data importer, and extension tests |
 
 ```mermaid
 flowchart TB
-    Platform[scene-access-platform<br/>tested component versions and Compose lifecycle]
-    GatewayRepo[scene-access-gateway<br/>Apache-2.0 portal, editor, API, identity integration]
-    WolfRepo[scene-access-gateway-wolf3d<br/>GPL-3.0 optional runtime and controller]
-    Local[(Protected local inputs<br/>secrets, audio, game data, host overrides)]
+    Platform[scene-access-platform]
+    GatewayRepo[scene-access-gateway]
+    WolfRepo[scene-access-gateway-wolf3d]
+    Release[Tested platform revision]
 
-    Platform -->|Git submodule pins one commit| GatewayRepo
-    Platform -->|Git submodule pins one commit| WolfRepo
-    Local -. mounted at runtime; never committed .-> Platform
+    Platform -->|gateway Git submodule| GatewayRepo
+    Platform -->|wolf3d Git submodule| WolfRepo
+    GatewayRepo -->|exact commit ID| Release
+    WolfRepo -->|exact commit ID| Release
 ```
 
-The two submodule directories are not copied component source in the platform
-history. The platform records one tested commit ID from each component. Inside
-`gateway/` or `wolf3d/`, Git operates on that component repository; at the
-platform root, Git sees only whether the recorded component pointer changed.
-Bootstrap initializes missing submodules but preserves already initialized
-component branches and working changes.
+Each submodule entry is a Git link to one component commit. The Platform
+history does not duplicate component source: it records the exact Gateway and
+Wolf revisions that passed integration testing together. Each component keeps
+its own review history, CI, release boundary, and license.
 
-At runtime, Gateway supplies the public entrypoint and private backend. The
-Wolf overlay adds read-only extension mounts. The platform scripts assemble
-and validate that combination while local configuration and licensed data stay
-outside every public repository.
+This separation is functional rather than cosmetic:
 
-## Clone
+- the Gateway remains independently buildable without an optional game runtime;
+- GPL extension source remains outside the Apache-2.0 application history;
+- commercial Wolfenstein 3D and Spear of Destiny data remains user-supplied;
+- component changes can be reviewed and tested independently;
+- a Platform revision provides a reproducible, auditable compatibility pair.
+
+## Technology and engineering scope
+
+| Area | Implementation |
+| --- | --- |
+| Edge and routing | Nginx, explicit route allowlisting, private upstream network, health checks |
+| Application | Node.js 22, browser-native JavaScript, durable JSON-backed state contracts |
+| Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
+| Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
+| Scene system | Versioned scene schema, responsive framing, hotspot sequences, motion bundles, immutable revisions |
+| Security visibility | Structured event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment |
+| Packaging | Dockerfiles, Docker Compose overlays, digest-pinned base images, deterministic asset archives |
+| Quality gates | Node test runner, syntax checks, manifest/hash verification, container builds, isolated runtime smoke tests |
+| Extension model | Read-only runtime/controller mounts and independently licensed component repositories |
+
+## Security and data boundaries
+
+The platform is designed around explicit trust boundaries:
+
+1. Nginx is the only service intended to receive public traffic.
+2. The backend administration listener is private and must not be published
+   directly.
+3. Authentik remains the identity authority; API credentials are mounted with
+   the minimum scope required for approved operations.
+4. Public clients never receive upstream credentials, private service
+   addresses, signing keys, or Authentik management tokens.
+5. Security records exclude request bodies, query strings, passwords,
+   QR/session tokens, and raw email identities.
+6. Scanner and injection classifications are investigation signals, not claims
+   that an exploit succeeded.
+7. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
+   segmentation belong to reviewed environment-specific configuration.
+
+Protected local inputs are deliberately excluded from all three repositories:
+
+| Input | Local location or mechanism |
+| --- | --- |
+| Gateway environment | `gateway/.env` |
+| Secrets and licensed audio | `gateway/.local/` |
+| Wolf/Spear commercial data | `wolf3d/runtime/*.WL*`, `*.SOD`, and `*.SD*` |
+| Platform deployment override | `.local/compose.override.yaml` |
+| TLS, proxy, storage, and network policy | Protected local mounts or target secret/configuration system |
+| GeoIP databases | Protected directory selected by `SAG_GEOIP_DIR` |
+
+Tracked engine source also lives under `wolf3d/runtime/`; only the commercial
+game-data extensions are ignored. Tests fail if a matching commercial dataset
+is accidentally tracked.
+
+## Getting started
+
+### Requirements
+
+- Git with submodule support
+- Docker Engine
+- Docker Compose v2
+- Node.js 22 or newer for host-side validation
+
+### Clone and bootstrap
 
 ```sh
 git clone --recurse-submodules https://github.com/zipkindev/scene-access-platform.git
@@ -56,44 +220,17 @@ cd scene-access-platform
 ./scripts/bootstrap.sh
 ```
 
-For an existing clone:
+For an existing checkout whose submodules are not initialized:
 
 ```sh
 git submodule update --init --recursive
 ```
 
-Agents and automation must follow [`AGENTS.md`](AGENTS.md). Its preflight,
-protected-data boundary, repository ownership, validation matrix and publish
-order apply to the platform and both submodules. Verify the workspace layout
-and ignore rules at any time with:
+Bootstrap creates missing ignored local directories and a safe development
+environment file. It preserves existing local configuration and already
+initialized component branches.
 
-```sh
-./scripts/check-workspace.sh
-```
-
-## Local configuration boundary
-
-The gateway submodule owns the working `.env` and `.local/` paths. Its
-bootstrap preserves existing values and creates safe defaults only when they
-are absent. The same immutable images can then be combined with
-different runtime configuration:
-
-```text
-gateway image + Wolf extension mounts + local Compose overlay + secrets/data
-```
-
-Optional local inputs remain in their owning repositories:
-
-- gateway environment and audio: `gateway/.env` and `gateway/.local/audio-source/`;
-- Wolf/Spear game data: `wolf3d/runtime/` through the extension importer;
-- deployment override: `.local/compose.override.yaml`;
-- GeoIP databases: `.local/geoip/` or another protected configured directory;
-- TLS, Authentik, SMTP and alerting secrets: protected local mounts only.
-
-None of those inputs belongs in this repository or either public child
-repository.
-
-## Validate, build and run
+### Validate, build, and run
 
 ```sh
 ./scripts/test.sh
@@ -101,53 +238,153 @@ repository.
 ./scripts/up.sh
 ```
 
-Default local endpoints are:
+The default development endpoints bind to loopback:
 
-- portal: <http://localhost:8080>
-- Scene Management: <http://localhost:8081>
+| Endpoint | URL | Purpose |
+| --- | --- | --- |
+| Portal | <http://localhost:8080> | Interactive scene and visitor access flow |
+| Scene Management | <http://localhost:8081> | Local authoring, review, and security workspace |
 
-Stop the stack with `./scripts/down.sh`.
+Stop the stack with:
 
-The launch scripts automatically include `.local/compose.override.yaml` when
-present. That file is the correct place for private proxy configuration,
-secrets, certificates, storage mounts and environment-specific networks.
-
-## Updating both repositories
-
-Run `./scripts/update-components.sh` only when both submodules and the platform
-repository are clean. It fast-forwards each component's `main`, runs the full
-integration tests, and leaves the new submodule pointers ready for review and
-a platform commit.
-
-For a shared feature developed locally, create a branch inside the owning
-submodule first. The platform can test that unpushed commit with the other
-component before it is published. After its pull request is merged, fast-forward
-the submodule to the final merge commit, rerun integration tests and commit the
-new platform pointer. This is the supported local-to-public and
-public-to-local synchronization path; do not maintain copied application files
-in the platform repository.
-
-The publish order is component first, platform second:
-
-```text
-component change -> component tests -> component commit/PR
-                 -> platform integration test -> platform pointer commit
+```sh
+./scripts/down.sh
 ```
 
-## Release ownership
+The root lifecycle scripts combine `gateway/compose.yaml` with
+`wolf3d/compose.extension.yaml` and export the extension path automatically.
+When `.local/compose.override.yaml` exists, the same scripts include it as the
+final environment-specific layer.
 
-| Repository | Owns |
-| --- | --- |
-| `scene-access-gateway` | Portal, Scene Management, security events, Authentik contracts, artwork and portable images |
-| `scene-access-gateway-wolf3d` | GPL engine, CRT controller, game-data import and extension tests |
-| `scene-access-platform` | Compatible commit pairing, combined Compose lifecycle, integration CI and operator documentation |
+### Optional Wolf3D/Spear data
 
-Production deployment is intentionally separate from Git synchronization. A
-successful platform build or GitHub Actions run does not authorize or perform
-a TrueNAS cutover.
+The extension repository contains GPL runtime source and integration logic but
+no commercial game data. Import legally obtained supported files from the
+Platform root:
 
-## Licensing
+```sh
+./wolf3d/scripts/import-game-data.sh /path/to/owned/game/files WL6
+./wolf3d/scripts/import-game-data.sh /path/to/owned/game/files SOD
+./wolf3d/scripts/verify-game-data.sh ALL
+```
 
-The platform orchestration files are Apache-2.0. Each submodule retains and
-enforces its own license. Commercial Wolfenstein 3D and Spear of Destiny game
-data are user supplied and are never part of a repository or image release.
+The importer validates the complete selected dataset against pinned filenames,
+byte lengths, and SHA-256 identities before installing anything.
+
+## Validation and continuous integration
+
+`./scripts/test.sh` is the Platform acceptance gate. It performs:
+
+- workspace topology and protected-path checks;
+- Markdown link and image validation across all three repositories;
+- Gateway source, configuration, scene, security, persistence, and API tests;
+- artwork, optional-audio, and pinned-container-base verification;
+- Wolf source identity, transition-contract, and commercial-data exclusion tests;
+- frontend and backend container builds;
+- an isolated combined Gateway/Wolf Compose smoke test.
+
+The same integration entry point runs in GitHub Actions from clean public
+checkouts. Component repositories also run their own focused CI so defects are
+caught before the Platform pointer is updated.
+
+## Development and synchronization
+
+Changes belong in the repository that owns the affected behavior. The Platform
+records the final tested integration state.
+
+### Local-first change
+
+```text
+component feature branch
+    -> component tests
+    -> component commit and pull request
+    -> component main merge
+    -> update Platform submodule pointer
+    -> Platform integration tests
+    -> Platform commit and pull request
+```
+
+### Remote-first update
+
+With all three worktrees clean:
+
+```sh
+./scripts/update-components.sh
+```
+
+The script switches each component to `main`, pulls with `--ff-only`, runs the
+complete integration suite, and leaves the new submodule pointers for review.
+The pointer update becomes a separate Platform commit only after validation.
+
+### Working-tree rules
+
+- Run `git status` separately at the Platform root, in `gateway/`, and in
+  `wolf3d/`; each is an independent Git worktree.
+- Commit application changes inside the owning component repository.
+- Publish component commits before publishing a Platform commit that points to
+  them.
+- Never use force-add to include ignored secrets, media, or game data.
+- Do not use copied component trees as an alternative synchronization path.
+
+The full automation and safety policy is documented in [`AGENTS.md`](AGENTS.md).
+
+## Repository layout
+
+```text
+scene-access-platform/
+├── .github/workflows/ci.yml     # Cross-repository integration CI
+├── gateway/                     # scene-access-gateway Git submodule
+├── wolf3d/                      # scene-access-gateway-wolf3d Git submodule
+├── scripts/
+│   ├── bootstrap.sh             # Initialize missing components and local inputs
+│   ├── check-docs.mjs           # Validate local Markdown links and images
+│   ├── check-workspace.sh       # Enforce repository and protected-data boundaries
+│   ├── test.sh                  # Complete acceptance suite
+│   ├── build.sh                 # Build the portable Gateway images
+│   ├── up.sh / down.sh          # Combined Compose lifecycle
+│   └── update-components.sh     # Fast-forward and validate component main branches
+├── AGENTS.md                    # Automation, Git, validation, and deployment policy
+├── .gitmodules                  # Canonical component repository URLs
+└── README.md
+```
+
+## Deployment model
+
+The tracked Compose files are portable and environment-neutral. Supported
+delivery patterns include local development, locally built Compose deployment,
+registry-backed images, and air-gapped image export/import. Authentik,
+PostgreSQL, and offline GeoIP are optional overlays.
+
+TrueNAS and other production targets use the same images with protected local
+configuration. Source synchronization, CI success, and image builds do not
+authorize a production deployment. A cutover requires a separately reviewed
+procedure covering the exact target, image versions or digests, configuration
+mounts, network exposure, certificates, backups, rollback, health checks, and
+active-session handling, followed by explicit approval.
+
+## Project status
+
+The public repositories contain the portable application, verified artwork,
+optional extension source, reproducible build inputs, automated tests, and
+integration workflows. Current local and GitHub CI validation covers the core
+Gateway, Scene Management, security ledger, asset pipeline, Wolf extension,
+container builds, and combined runtime.
+
+Active engineering work includes continued security-monitoring development and
+configurable critical-event alerting. Production environment configuration and
+commercial or locally licensed content remain intentionally outside the public
+source tree.
+
+## Licensing and third-party boundaries
+
+- Platform orchestration and documentation: [Apache-2.0](LICENSE)
+- Gateway software: [Apache-2.0](https://github.com/zipkindev/scene-access-gateway/blob/main/LICENSE)
+- Project-generated Gateway artwork: CC BY 4.0 with per-asset provenance
+- Wolf3D/Spear extension source: [GPL-3.0](https://github.com/zipkindev/scene-access-gateway-wolf3d/blob/main/LICENSE)
+- Optional third-party audio: locally supplied under its recorded source terms;
+  raw files are not distributed by the repositories
+- Wolfenstein 3D and Spear of Destiny data: user supplied and never distributed
+
+Wolfenstein 3D, Spear of Destiny, id Software, Bethesda, ZeniMax, Microsoft,
+and related names and content belong to their respective owners. The extension
+is not affiliated with or endorsed by those organizations.
