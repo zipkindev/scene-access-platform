@@ -1,5 +1,10 @@
 # Scene Access Platform
 
+[![Platform CI](https://github.com/zipkindev/scene-access-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/zipkindev/scene-access-platform/actions/workflows/ci.yml)
+[![Gateway](https://img.shields.io/badge/component-Gateway-2563eb.svg)](https://github.com/zipkindev/scene-access-gateway)
+[![Wolf3D](https://img.shields.io/badge/extension-Wolf3D%2FSpear-7c3aed.svg)](https://github.com/zipkindev/scene-access-gateway-wolf3d)
+[![License: Apache-2.0](https://img.shields.io/badge/platform-Apache--2.0-blue.svg)](LICENSE)
+
 Scene Access Platform is the integration workspace for the two independently
 maintained repositories that make up the complete project:
 
@@ -16,6 +21,32 @@ This platform repository is the primary integration and operator entry point.
 The component repositories remain independently accessible because Git must be
 able to fetch them during a recursive clone; they should not be deleted or made
 private while this repository is public and uses submodules.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    Platform[scene-access-platform<br/>tested component versions and Compose lifecycle]
+    GatewayRepo[scene-access-gateway<br/>Apache-2.0 portal, editor, API, identity integration]
+    WolfRepo[scene-access-gateway-wolf3d<br/>GPL-3.0 optional runtime and controller]
+    Local[(Protected local inputs<br/>secrets, audio, game data, host overrides)]
+
+    Platform -->|Git submodule pins one commit| GatewayRepo
+    Platform -->|Git submodule pins one commit| WolfRepo
+    Local -. mounted at runtime; never committed .-> Platform
+```
+
+The two submodule directories are not copied component source in the platform
+history. The platform records one tested commit ID from each component. Inside
+`gateway/` or `wolf3d/`, Git operates on that component repository; at the
+platform root, Git sees only whether the recorded component pointer changed.
+Bootstrap initializes missing submodules but preserves already initialized
+component branches and working changes.
+
+At runtime, Gateway supplies the public entrypoint and private backend. The
+Wolf overlay adds read-only extension mounts. The platform scripts assemble
+and validate that combination while local configuration and licensed data stay
+outside every public repository.
 
 ## Clone
 
@@ -95,6 +126,13 @@ the submodule to the final merge commit, rerun integration tests and commit the
 new platform pointer. This is the supported local-to-public and
 public-to-local synchronization path; do not maintain copied application files
 in the platform repository.
+
+The publish order is component first, platform second:
+
+```text
+component change -> component tests -> component commit/PR
+                 -> platform integration test -> platform pointer commit
+```
 
 ## Release ownership
 
