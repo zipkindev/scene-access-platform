@@ -1,0 +1,6 @@
+[submodule "gateway"]
+	path = gateway
+	url = https://github.com/zipkindev/scene-access-gateway.git
+[submodule "wolf3d"]
+	path = wolf3d
+	url = https://github.com/zipkindev/scene-access-gateway-wolf3d.git

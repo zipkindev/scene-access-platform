@@ -1,0 +1,5 @@
+.env
+.local/
+*.tar
+*.tar.gz
+

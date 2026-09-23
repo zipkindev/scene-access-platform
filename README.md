@@ -1,0 +1,101 @@
+# Scene Access Platform
+
+Scene Access Platform is the integration workspace for the two independently
+maintained repositories that make up the complete project:
+
+- `gateway/` — the Apache-2.0 Scene Access Gateway portal, Scene Management,
+  Authentik integration and portable frontend/backend containers;
+- `wolf3d/` — the GPL-3.0 optional uWolf-derived Wolfenstein 3D and Spear of
+  Destiny extension.
+
+They are Git submodules rather than copied source trees. A platform commit
+therefore records an exact, tested pair of gateway and extension commits while
+each component keeps its own history, license, CI and release documentation.
+
+## Clone
+
+```sh
+git clone --recurse-submodules <platform-repository-url>
+cd scene-access-platform
+./scripts/bootstrap.sh
+```
+
+For an existing clone:
+
+```sh
+git submodule update --init --recursive
+```
+
+## Local configuration boundary
+
+Copy `.env.example` to `.env` and keep real environment values under ignored
+`.env` and `.local/` paths. The same immutable images can then be combined with
+different runtime configuration:
+
+```text
+gateway image + Wolf extension mounts + local Compose overlay + secrets/data
+```
+
+Optional local inputs remain in their owning repositories:
+
+- gateway audio source: `gateway/.local/audio-source/`;
+- Wolf/Spear game data: `wolf3d/runtime/` through the extension importer;
+- deployment override: `.local/compose.override.yaml`;
+- GeoIP databases: `.local/geoip/` or another protected configured directory;
+- TLS, Authentik, SMTP and alerting secrets: protected local mounts only.
+
+None of those inputs belongs in this repository or either public child
+repository.
+
+## Validate, build and run
+
+```sh
+./scripts/test.sh
+./scripts/build.sh
+./scripts/up.sh
+```
+
+Default local endpoints are:
+
+- portal: <http://localhost:8080>
+- Scene Management: <http://localhost:8081>
+
+Stop the stack with `./scripts/down.sh`.
+
+The launch scripts automatically include `.local/compose.override.yaml` when
+present. That file is the correct place for private proxy configuration,
+secrets, certificates, storage mounts and environment-specific networks.
+
+## Updating both repositories
+
+Run `./scripts/update-components.sh` only when both submodules and the platform
+repository are clean. It fast-forwards each component's `main`, runs the full
+integration tests, and leaves the new submodule pointers ready for review and
+a platform commit.
+
+For a shared feature developed locally, create a branch inside the owning
+submodule first. The platform can test that unpushed commit with the other
+component before it is published. After its pull request is merged, fast-forward
+the submodule to the final merge commit, rerun integration tests and commit the
+new platform pointer. This is the supported local-to-public and
+public-to-local synchronization path; do not maintain copied application files
+in the platform repository.
+
+## Release ownership
+
+| Repository | Owns |
+| --- | --- |
+| `scene-access-gateway` | Portal, Scene Management, security events, Authentik contracts, artwork and portable images |
+| `scene-access-gateway-wolf3d` | GPL engine, CRT controller, game-data import and extension tests |
+| `scene-access-platform` | Compatible commit pairing, combined Compose lifecycle, integration CI and operator documentation |
+
+Production deployment is intentionally separate from Git synchronization. A
+successful platform build or GitHub Actions run does not authorize or perform
+a TrueNAS cutover.
+
+## Licensing
+
+The platform orchestration files are Apache-2.0. Each submodule retains and
+enforces its own license. Commercial Wolfenstein 3D and Spear of Destiny game
+data are user supplied and are never part of a repository or image release.
+
