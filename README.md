@@ -116,6 +116,34 @@ WAF, but must preserve the same public/private boundary. Scene state, keys,
 credentials, licensed audio, GeoIP databases, commercial game data, and
 host-specific policy are mounted at runtime rather than embedded in images.
 
+The production layout is one Compose application with six cooperating
+services, not two competing WAF implementations:
+
+| Service | Responsibility |
+| --- | --- |
+| `access-waf` | Public TLS edge: Nginx loads ModSecurity 3.0.16, which evaluates OWASP CRS 4.29.0 rules before proxying the request. |
+| `access-proxy` | Private hardened origin Nginx: canonical-host routing, management-route isolation, request limits, and upstream policy. |
+| `access-portal` | Portal, Scene Management, security ledger, WAF ingestion, incident correlation, and optional Telegram delivery. |
+| `waf-telemetry` | Networkless, continuously running normalizer with read-only raw-audit access and a dedicated sanitized output volume. |
+| `cert-reloader` | Origin certificate reload health and lifecycle. |
+| `waf-cert-reloader` | Public WAF certificate reload health and lifecycle. |
+
+Raw ModSecurity transaction identifiers are retained only when they already
+match the bounded ledger identifier contract; other valid identifiers are
+replaced with stable SHA-256-derived correlation IDs. Initial audit backfill is
+marked historical, remains visible in Scene Management, and cannot enqueue
+Telegram alerts. New findings enter the normal source/target/category incident
+flow, where the first qualifying event alerts, duplicates aggregate, and
+persistent activity can re-alert without deleting any ledger records.
+
+The WAF is intentionally deployed in `DetectionOnly` for a one-week baseline.
+During that period, operators review passed, origin-rejected, rate-limited, and
+edge findings alongside application events. On or after the review window,
+high-confidence CRS rules can be enabled in small groups only after false
+positives and representative portal, QR, login, editor, asset, and private
+service flows have been checked. The origin and application controls stay in
+force in both modes.
+
 ### Access handoff
 
 ```mermaid
