@@ -144,6 +144,11 @@ positives and representative portal, QR, login, editor, asset, and private
 service flows have been checked. The origin and application controls stay in
 force in both modes.
 
+Any additional public portal hostname is an explicit deployment alias rather
+than a wildcard. The WAF, origin Nginx, and backend allowlists must agree; the
+backend normalizes the trusted proxy's external/default and canonical origin
+ports while rejecting unconfigured names and arbitrary ports.
+
 ### Access handoff
 
 ```mermaid
