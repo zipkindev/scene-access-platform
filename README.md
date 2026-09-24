@@ -64,6 +64,12 @@ status, and a test action in the same console. A networkless sidecar normalizes
 the restricted WAF audit stream into the same integrity-protected ledger, so
 operators can filter application and WAF findings separately while retaining
 one investigation and notification surface.
+WAF severity follows the matched CRS rule and detection confidence; an origin
+HTTP status does not promote a finding. `Observed only` means DetectionOnly
+recorded the request without blocking it. Even when the origin returned `2xx`,
+that is not proof that authentication was bypassed or exploitation succeeded.
+Cards and Telegram messages include the sanitized method, path, origin status,
+CRS rule ID, safe rule explanation, enforcement action, and that distinction.
 The bot token is accepted through a write-only administration field, verified
 with Telegram, stored as a protected server-side file, and never returned to
 the browser. Scene Management discovers the numeric destination ID after the
@@ -137,8 +143,9 @@ flow, where the first qualifying event alerts, duplicates aggregate, and
 persistent activity can re-alert without deleting any ledger records.
 
 The WAF is intentionally deployed in `DetectionOnly` for a one-week baseline.
-During that period, operators review passed, origin-rejected, rate-limited, and
-edge findings alongside application events. On or after the review window,
+During that period, operators review observed-but-not-blocked,
+origin-rejected, rate-limited, and edge findings alongside application events.
+On or after the review window,
 high-confidence CRS rules can be enabled in small groups only after false
 positives and representative portal, QR, login, editor, asset, and private
 service flows have been checked. The origin and application controls stay in
