@@ -18,6 +18,54 @@ Work in this order:
 Do not create another clone or copied source tree. The canonical local paths
 are this repository, `gateway/`, and `wolf3d/`.
 
+## Working agreement and ambiguity
+
+The user supplies the desired outcome. The coordinating agent is responsible
+for inspecting this repository, forming the technically appropriate plan, and
+executing it. Do not make the user restate information that can be learned from
+the source, documentation, Git history, tests, or established project layout.
+
+Preserve the plain meaning of the user's request. Do not silently translate it
+into a broader, narrower, or contextually different task. Correct an incorrect
+technical, architectural, security, or repository assumption directly and
+explain the evidence before proceeding.
+
+Ask a clarification only when two or more reasonable interpretations would
+materially change the implementation, data, external target, security posture,
+or irreversible result. In that case, state the concise interpretation and ask
+`Did you mean this: ...?` Wait for confirmation. Do not ask about choices the
+repository already resolves, minor implementation details the agent owns, or
+safe reversible decisions that do not change the requested outcome.
+
+Keep these states distinct in plans, progress updates, and final reports:
+
+- **implemented**: source changes exist in the owning worktree;
+- **validated**: the relevant tests, builds, or smoke checks passed;
+- **published**: commits are available from the component/platform remotes;
+- **deployed**: the identified runtime target is actually running the change.
+
+A local build, local Compose restart, branch push, or platform pointer update
+must never be described as a deployment of another runtime. When a screenshot,
+URL, or named environment identifies the user's target, validate and report
+against that target rather than substituting the local development stack.
+
+## Established project context
+
+- Scene Management and its Security Monitoring section are Gateway features
+  owned by `gateway/`. Their document, browser behavior, authenticated routes,
+  security ledger, and GeoIP enrichment live under `gateway/backend/src/`.
+- A request to add a control or visualization inside Security Monitoring means
+  integrate it into that existing Scene Management workspace unless the user
+  explicitly requests a separate application.
+- The platform root records and validates compatible Gateway/Wolf commits. It
+  does not own copied Gateway application source.
+- The local `scene-access-gateway` Compose project and loopback ports are a
+  development/validation runtime. Do not assume they are the same instance as
+  a user-provided live Scene Management URL or gateway Compose group.
+- Production security events, GeoLite2 databases, WAF telemetry, secrets, and
+  deployment overlays remain protected runtime state. Absence of that state in
+  the local validation stack is not evidence that it is absent in production.
+
 ## Repository ownership
 
 - `gateway/` owns the portal, Scene Management, backend, Authentik contracts,
