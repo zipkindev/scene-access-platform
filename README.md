@@ -64,18 +64,27 @@ status, and a test action in the same console. A networkless sidecar normalizes
 the restricted WAF audit stream into the same integrity-protected ledger, so
 operators can filter application and WAF findings separately while retaining
 one investigation and notification surface.
-WAF severity follows the matched CRS rule and detection confidence; an origin
-HTTP status does not promote a finding. `Observed only` means DetectionOnly
-recorded the request without blocking it. Even when the origin returned `2xx`,
-that is not proof that authentication was bypassed or exploitation succeeded.
-Cards and Telegram messages include the sanitized method, path, origin status,
-CRS rule ID, safe rule explanation, enforcement action, and that distinction.
+WAF severity follows the matched CRS rule and detection confidence; a response
+code does not promote a finding. `Observed only` means DetectionOnly recorded
+the request without interrupting it. ModSecurity's audit response code is
+explicitly labeled unverified until correlated with the edge access log, so an
+audit `200` cannot masquerade as proof of client success, authentication
+bypass, or exploitation. Cards and Telegram messages include the sanitized
+method, path, audit status, CRS rule ID, safe rule explanation, enforcement
+action, and that distinction.
 The bot token is accepted through a write-only administration field, verified
 with Telegram, stored as a protected server-side file, and never returned to
 the browser. Scene Management discovers the numeric destination ID after the
 operator messages the bot.
 The screenshot uses an RFC-reserved documentation address and contains no
 production identity or infrastructure data.
+
+![Scene Management passive source-intelligence view with sanitized documentation data](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-source-intelligence.png)
+
+Selecting a public source can open a passive intelligence view that combines
+the protected event ledger with local GeoIP, RDAP ownership, reverse DNS, and
+routing evidence. The network-capable helper is isolated from portal state and
+active checks remain disabled by default.
 
 ## System architecture
 
@@ -97,6 +106,8 @@ flowchart LR
     Backend --> Mail[SMTP]
     Backend --> Identity[Authentik API]
     Backend -. optional critical alerts .-> Telegram[Telegram Bot API]
+    Backend -->|authenticated, bounded requests| Recon[Isolated source-intelligence worker]
+    Recon -->|RDAP, reverse DNS, routing evidence| PublicData[Public network registries]
     Identity --> Postgres[(PostgreSQL)]
 
     Wolf[Optional Wolf3D/Spear extension] -. read-only mounts .-> Backend
@@ -106,7 +117,7 @@ flowchart LR
     classDef private fill:#ecfdf5,stroke:#059669,color:#111827
     classDef optional fill:#f3e8ff,stroke:#7c3aed,color:#111827
     class WAF,Edge edge
-    class Backend,State,WAudit,Collector,WFeed,Mail,Identity,Postgres,Service private
+    class Backend,State,WAudit,Collector,WFeed,Mail,Identity,Postgres,Service,Recon private
     class Wolf optional
 ```
 
@@ -122,7 +133,7 @@ WAF, but must preserve the same public/private boundary. Scene state, keys,
 credentials, licensed audio, GeoIP databases, commercial game data, and
 host-specific policy are mounted at runtime rather than embedded in images.
 
-The production layout is one Compose application with six cooperating
+The production layout is one Compose application with seven cooperating
 services, not two competing WAF implementations:
 
 | Service | Responsibility |
@@ -131,6 +142,7 @@ services, not two competing WAF implementations:
 | `access-proxy` | Private hardened origin Nginx: canonical-host routing, management-route isolation, request limits, and upstream policy. |
 | `access-portal` | Portal, Scene Management, security ledger, WAF ingestion, incident correlation, and optional Telegram delivery. |
 | `waf-telemetry` | Networkless, continuously running normalizer with read-only raw-audit access and a dedicated sanitized output volume. |
+| `source-intelligence` | Unexposed, token-authenticated helper with constrained egress for passive RDAP, reverse-DNS, and routing evidence; active checks remain disabled by default. |
 | `cert-reloader` | Origin certificate reload health and lifecycle. |
 | `waf-cert-reloader` | Public WAF certificate reload health and lifecycle. |
 
@@ -143,8 +155,9 @@ flow, where the first qualifying event alerts, duplicates aggregate, and
 persistent activity can re-alert without deleting any ledger records.
 
 The WAF is intentionally deployed in `DetectionOnly` for a one-week baseline.
-During that period, operators review observed-but-not-blocked,
-origin-rejected, rate-limited, and edge findings alongside application events.
+During that period, operators review audit-reported outcomes and correlate them
+with final origin access records. A ModSecurity audit response code is not
+presented as the final client response unless an edge interruption verifies it.
 On or after the review window,
 high-confidence CRS rules can be enabled in small groups only after false
 positives and representative portal, QR, login, editor, asset, and private
@@ -155,6 +168,14 @@ Any additional public portal hostname is an explicit deployment alias rather
 than a wildcard. The WAF, origin Nginx, and backend allowlists must agree; the
 backend normalizes the trusted proxy's external/default and canonical origin
 ports while rejecting unconfigured names and arbitrary ports.
+
+New applications must also be declared in the Gateway's tracked
+`deploy/applications.json` contract. That review records the public route or
+host, private origin and TLS-name inputs, Authentik/QR behavior, proxy and
+cookie rules, external browser-policy sources, inherited WAF policy, any
+narrow time-bounded exclusion, and the required anonymous, authenticated,
+negative, and integration journeys. CI rejects incomplete or wildcard
+exceptions before a deployment overlay can be promoted.
 
 ### Access handoff
 
