@@ -312,6 +312,27 @@ local prerequisite; do not invent replacement credentials or deployment paths.
 
 ## Commits and synchronization
 
+### Public-repository verification gate
+
+Treat every push to a component or platform remote as publication, including a
+push to an unmerged feature branch. For substantial application, security,
+container, state-contract, asset, or deployment changes, use this order:
+
+1. implement, test, and commit locally;
+2. when deployment is in scope, build and deploy the exact local commit through
+   the guarded release process;
+3. complete the required live health, behavior, state-preservation, and browser
+   verification;
+4. only after those checks pass, push the component commit and then the tested
+   platform pointer.
+
+Do not run a component sync/push script before live verification merely because
+the user requested commit, deploy, and eventual publication. Approval to commit
+or deploy is not approval to publish an unvetted outcome. An explicit direction
+to push before verification for that specific task is the only exception. If a
+task does not include deployment, retain the existing rule that publication
+must be explicitly requested.
+
 Before committing in any repository:
 
 ```sh
