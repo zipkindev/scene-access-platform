@@ -58,8 +58,20 @@ for severity, event and alert category, detected country, exact IP, and CIDR
 range. MaxMind account onboarding, protected database downloads, updates, and
 credential removal are available in the same console.
 Operators can configure Telegram alerts for selected severities and categories,
-with aggregation, cooldowns, hourly limits, UTC quiet hours, critical-event
-override, redaction, delivery status, and a test action in the same console.
+with aggregation, target-aware incident deduplication, persistence reminders,
+hourly limits, UTC quiet hours, critical-event override, redaction, delivery
+status, and a test action in the same console. A networkless sidecar normalizes
+the restricted WAF audit stream into the same integrity-protected ledger, so
+operators can filter application and WAF findings separately while retaining
+one investigation and notification surface.
+WAF severity follows the matched CRS rule and detection confidence; a response
+code does not promote a finding. `Observed only` means DetectionOnly recorded
+the request without interrupting it. ModSecurity's audit response code is
+explicitly labeled unverified until correlated with the edge access log, so an
+audit `200` cannot masquerade as proof of client success, authentication
+bypass, or exploitation. Cards and Telegram messages include the sanitized
+method, path, audit status, CRS rule ID, safe rule explanation, enforcement
+action, and that distinction.
 The bot token is accepted through a write-only administration field, verified
 with Telegram, stored as a protected server-side file, and never returned to
 the browser. Scene Management discovers the numeric destination ID after the
@@ -67,21 +79,35 @@ operator messages the bot.
 The screenshot uses an RFC-reserved documentation address and contains no
 production identity or infrastructure data.
 
+![Scene Management passive source-intelligence view with sanitized documentation data](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-source-intelligence.png)
+
+Selecting a public source can open a passive intelligence view that combines
+the protected event ledger with local GeoIP, RDAP ownership, reverse DNS, and
+routing evidence. The network-capable helper is isolated from portal state and
+active checks remain disabled by default.
+
 ## System architecture
 
 ```mermaid
 flowchart LR
-    Display[Display browser] -->|HTTPS| Edge[Nginx gateway]
-    Phone[Visitor phone] -->|QR and email confirmation| Edge
-    Operator[Authenticated operator] -->|Scene Management| Edge
+    Display[Display browser] -->|public HTTPS| WAF[OWASP CRS WAF<br/>Nginx + ModSecurity]
+    Phone[Visitor phone] -->|QR and email confirmation| WAF
+    WAF -->|loopback HTTPS| Edge[Hardened origin Nginx]
+    Operator[Authenticated operator] -->|private Scene Management route| Edge
 
     Edge -->|private Compose network| Backend[Node.js portal backend]
     Edge -->|approved session only| Service[Private destination]
 
-    Backend --> State[(Scene, session, score, and audit state)]
+    WAF --> WAudit[(Restricted WAF audit)]
+    WAudit --> Collector[Networkless telemetry normalizer]
+    Collector --> WFeed[(Sanitized WAF findings)]
+    WFeed --> Backend
+    Backend --> State[(Scene, session, score, and application audit state)]
     Backend --> Mail[SMTP]
     Backend --> Identity[Authentik API]
     Backend -. optional critical alerts .-> Telegram[Telegram Bot API]
+    Backend -->|authenticated, bounded requests| Recon[Isolated source-intelligence worker]
+    Recon -->|RDAP, reverse DNS, routing evidence| PublicData[Public network registries]
     Identity --> Postgres[(PostgreSQL)]
 
     Wolf[Optional Wolf3D/Spear extension] -. read-only mounts .-> Backend
@@ -90,16 +116,66 @@ flowchart LR
     classDef edge fill:#dbeafe,stroke:#2563eb,color:#111827
     classDef private fill:#ecfdf5,stroke:#059669,color:#111827
     classDef optional fill:#f3e8ff,stroke:#7c3aed,color:#111827
-    class Edge edge
-    class Backend,State,Mail,Identity,Postgres,Service private
+    class WAF,Edge edge
+    class Backend,State,WAudit,Collector,WFeed,Mail,Identity,Postgres,Service,Recon private
     class Wolf optional
 ```
 
-The Nginx container is the only intended public HTTP entrypoint. The Node.js
-backend and identity services remain on private Compose networks. Scene state,
-keys, credentials, licensed audio, GeoIP databases, commercial game data, and
-host-specific policy are mounted at runtime rather than embedded in public
-images.
+For deployments using the tracked WAF component, the WAF Nginx process is the
+only intended public HTTP entrypoint. It embeds ModSecurity and OWASP CRS,
+drops unknown hosts, and forwards accepted traffic to a separate hardened
+origin Nginx listener over loopback. The Node.js backend and identity services
+remain private. The telemetry normalizer has no network, application state,
+Telegram credentials, or Docker socket; the backend receives only bounded
+findings without headers, bodies, cookies, authorization values, or query
+values. Portable deployments may run the origin without the optional
+WAF, but must preserve the same public/private boundary. Scene state, keys,
+credentials, licensed audio, GeoIP databases, commercial game data, and
+host-specific policy are mounted at runtime rather than embedded in images.
+
+The production layout is one Compose application with seven cooperating
+services, not two competing WAF implementations:
+
+| Service | Responsibility |
+| --- | --- |
+| `access-waf` | Public TLS edge: Nginx loads ModSecurity 3.0.16, which evaluates OWASP CRS 4.29.0 rules before proxying the request. |
+| `access-proxy` | Private hardened origin Nginx: canonical-host routing, management-route isolation, request limits, and upstream policy. |
+| `access-portal` | Portal, Scene Management, security ledger, WAF ingestion, incident correlation, and optional Telegram delivery. |
+| `waf-telemetry` | Networkless, continuously running normalizer with read-only raw-audit access and a dedicated sanitized output volume. |
+| `source-intelligence` | Unexposed, token-authenticated helper with constrained egress for passive RDAP, reverse-DNS, and routing evidence; active checks remain disabled by default. |
+| `cert-reloader` | Origin certificate reload health and lifecycle. |
+| `waf-cert-reloader` | Public WAF certificate reload health and lifecycle. |
+
+Raw ModSecurity transaction identifiers are retained only when they already
+match the bounded ledger identifier contract; other valid identifiers are
+replaced with stable SHA-256-derived correlation IDs. Initial audit backfill is
+marked historical, remains visible in Scene Management, and cannot enqueue
+Telegram alerts. New findings enter the normal source/target/category incident
+flow, where the first qualifying event alerts, duplicates aggregate, and
+persistent activity can re-alert without deleting any ledger records.
+
+The WAF is intentionally deployed in `DetectionOnly` for a one-week baseline.
+During that period, operators review audit-reported outcomes and correlate them
+with final origin access records. A ModSecurity audit response code is not
+presented as the final client response unless an edge interruption verifies it.
+On or after the review window,
+high-confidence CRS rules can be enabled in small groups only after false
+positives and representative portal, QR, login, editor, asset, and private
+service flows have been checked. The origin and application controls stay in
+force in both modes.
+
+Any additional public portal hostname is an explicit deployment alias rather
+than a wildcard. The WAF, origin Nginx, and backend allowlists must agree; the
+backend normalizes the trusted proxy's external/default and canonical origin
+ports while rejecting unconfigured names and arbitrary ports.
+
+New applications must also be declared in the Gateway's tracked
+`deploy/applications.json` contract. That review records the public route or
+host, private origin and TLS-name inputs, Authentik/QR behavior, proxy and
+cookie rules, external browser-policy sources, inherited WAF policy, any
+narrow time-bounded exclusion, and the required anonymous, authenticated,
+negative, and integration journeys. CI rejects incomplete or wildcard
+exceptions before a deployment overlay can be promoted.
 
 ### Access handoff
 
@@ -140,7 +216,7 @@ The platform is intentionally split across three public repositories:
 | Repository | License | Responsibility |
 | --- | --- | --- |
 | [`scene-access-platform`](https://github.com/zipkindev/scene-access-platform) | Apache-2.0 | Compatible component revisions, combined Compose lifecycle, integration CI, synchronization policy, and operator entry point |
-| [`scene-access-gateway`](https://github.com/zipkindev/scene-access-gateway) | Apache-2.0 | Portal frontend, Node.js backend, Scene Management, Authentik contracts, security ledger, artwork, and portable container images |
+| [`scene-access-gateway`](https://github.com/zipkindev/scene-access-gateway) | Apache-2.0 | Portal frontend, Node.js backend, Scene Management, Authentik contracts, security ledger, reusable OWASP CRS WAF component, artwork, and portable container images |
 | [`scene-access-gateway-wolf3d`](https://github.com/zipkindev/scene-access-gateway-wolf3d) | GPL-3.0 | uWolf-derived runtime, CRT integration controller, supported-data manifest, safe game-data importer, and extension tests |
 
 ```mermaid
@@ -173,12 +249,12 @@ This separation is functional rather than cosmetic:
 
 | Area | Implementation |
 | --- | --- |
-| Edge and routing | Nginx, explicit route allowlisting, private upstream network, health checks |
-| Application | Node.js 22, browser-native JavaScript, durable JSON-backed state contracts |
+| Edge and routing | Hardened origin Nginx plus optional OWASP CRS 4.29.0/ModSecurity 3.0.16 WAF, normalized token-safe logs, host/probe/management-route denials, bounded connections, private upstream network, health checks |
+| Application | Node.js 22, browser-native JavaScript, strict host/method/body handling, durable JSON-backed state contracts |
 | Identity | Authentik API integration, optional Authentik worker and PostgreSQL Compose overlay |
 | Authorization | Browser-bound QR challenges, email confirmation, destination membership, scoped sessions, signed assertions |
 | Scene system | Versioned scene schema, responsive framing, hotspot sequences, motion bundles, immutable revisions |
-| Security visibility | Structured event ledger, bounded retention, keyed identity fingerprints, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
+| Security visibility | Ordered asynchronous event ledger, bounded retention, sanitized WAF ingestion, application/WAF stream filters, keyed incident deduplication and reminders, optional offline GeoIP/ASN enrichment, and policy-controlled Telegram alerts |
 | Packaging | Dockerfiles, Docker Compose overlays, digest-pinned base images, deterministic asset archives |
 | Quality gates | Node test runner, syntax checks, manifest/hash verification, container builds, isolated runtime smoke tests |
 | Extension model | Read-only runtime/controller mounts and independently licensed component repositories |
@@ -187,7 +263,9 @@ This separation is functional rather than cosmetic:
 
 The platform is designed around explicit trust boundaries:
 
-1. Nginx is the only service intended to receive public traffic.
+1. Only the selected edge is intended to receive public traffic: the WAF when
+   enabled, otherwise the portable Nginx gateway. A WAF deployment keeps its
+   separate origin listener private or loopback-only.
 2. The backend administration listener is private and must not be published
    directly.
 3. Authentik remains the identity authority; API credentials are mounted with
@@ -203,6 +281,13 @@ The platform is designed around explicit trust boundaries:
    that an exploit succeeded.
 8. Production TLS, trusted-proxy policy, storage, secrets, backups, and network
    segmentation belong to reviewed environment-specific configuration.
+9. Public ingress denies the TorrentHarbor management API and strips caller
+   trust headers; management authorization uses the direct peer on the private
+   backend network.
+10. A deployment WAF supplements the portable edge and application checks. New
+    rules remain in observation mode until representative portal, editor, and
+    service flows pass; the portable one-day HSTS starter policy is preserved
+    and lengthened at TLS termination only after validation.
 
 Protected local inputs are deliberately excluded from all three repositories:
 
@@ -387,7 +472,10 @@ Gateway, Scene Management, security ledger, asset pipeline, Wolf extension,
 container builds, and combined runtime.
 
 Security monitoring includes configurable Telegram alert policy and delivery
-controls while keeping credentials environment-local. Production environment
+controls while keeping credentials environment-local. The Gateway also
+normalizes access logs to exclude queries and one-time URL tokens, drains event
+writes on shutdown, avoids state rewrites for read-only requests, and applies
+browser isolation and immutable versioned-asset caching. Production environment
 configuration and commercial or locally licensed content remain intentionally
 outside the public source tree.
 
