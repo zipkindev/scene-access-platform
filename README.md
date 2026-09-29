@@ -27,7 +27,7 @@ The platform combines four areas that are often separate systems:
   ordered activation sequences, QR challenges, and browser-bound handoffs.
 - **Scene Management:** artwork ingestion, image optimization, TV and phone
   framing, hotspot authoring, drafts, publishing, revision history, access
-  review, and security monitoring.
+  review, click diagnostics, and security monitoring.
 - **Identity-aware proxying:** Authentik-backed identity and group checks,
   email confirmation, destination-scoped sessions, and short-lived signed
   assertions for approved upstream services.
@@ -37,16 +37,35 @@ The platform combines four areas that are often separate systems:
 
 ### Scene authoring
 
-![Scene Management configuring an ordered access sequence](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-sequence.png)
+![Scene Management configuring an ordered access sequence](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/33d1bcc8b2f079e069677163176e9758a635342c/docs/media/scene-management-sequence.png)
 
 Scene Management works in image-relative coordinates so authored hotspots and
 framing survive different viewport sizes. Operators can define up to ten
 ordered interaction points, preview the resulting experience, publish an
-immutable revision, and roll back without rebuilding an image.
+immutable revision, and roll back without rebuilding an image. An opt-in,
+per-scene click debugger shows rejected, accepted, and completed interaction
+receipts while troubleshooting; it remains invisible to visitors unless an
+operator explicitly enables it.
 
 ### Security operations
 
-![Scene Management security monitoring with sanitized demonstration data](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-security.png)
+![Scene Management Security Monitoring with a simulated attack-evidence globe, event summaries, and composable filters](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/33d1bcc8b2f079e069677163176e9758a635342c/docs/media/scene-management-security.png)
+
+_A disposable local fixture drives the globe and event ledger with
+documentation-only addresses. The arcs, locations, counts, and cards are
+rendered by the real Scene Management interface; no production telemetry is
+shown._
+
+Security Monitoring turns sanitized application and WAF events into one
+investigation workspace:
+
+| View | What operators can inspect |
+| --- | --- |
+| Attack-evidence globe | Approximate source-to-destination arcs, mapped-event and source counts, top cities and IPs, selectable sources, guided travel, pan/tilt, and zoom |
+| Live summary | Event volume, public source count, QR outcomes, failed logins, warnings, critical signals, integrity failures, WAF findings, rate limits, and edge/WAF enforcement outcomes |
+| Events | Time-ordered application and WAF cards with severity, category, source and approximate location, target, sanitized request evidence, enforcement action, and final-response provenance |
+| Filters | Application/WAF stream, severity, time range, event type, alert type, detected country, exact IP, and CIDR; active filters are removable and apply to the CSV export |
+| Evidence | Local GeoIP/ASN context, event-ledger integrity state, WAF correlation status, retention coverage, and passive source intelligence |
 
 The protected security console correlates portal visits, QR outcomes, access
 requests, session creation, rejected routes, rate limits, and scanner or
@@ -76,15 +95,19 @@ The bot token is accepted through a write-only administration field, verified
 with Telegram, stored as a protected server-side file, and never returned to
 the browser. Scene Management discovers the numeric destination ID after the
 operator messages the bot.
-The screenshot uses an RFC-reserved documentation address and contains no
+The screenshots use only RFC-reserved documentation addresses and contain no
 production identity or infrastructure data.
 
-![Scene Management passive source-intelligence view with sanitized documentation data](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/main/docs/media/scene-management-source-intelligence.png)
+![Scene Management tracing a selected simulated source into the passive evidence view](https://raw.githubusercontent.com/zipkindev/scene-access-gateway/33d1bcc8b2f079e069677163176e9758a635342c/docs/media/scene-management-source-intelligence.png)
 
 Selecting a public source can open a passive intelligence view that combines
 the protected event ledger with local GeoIP, RDAP ownership, reverse DNS, and
-routing evidence. The network-capable helper is isolated from portal state and
-active checks remain disabled by default.
+routing evidence. The globe traces the selected source, while the evidence
+panel separates infrastructure ownership from attribution and records evidence
+quality, collection time, and confidence. Sanitized JSON export supports
+offline review. The network-capable helper is isolated from portal state and
+active checks remain disabled by default; an active reconnaissance request
+requires explicit operator confirmation.
 
 ## System architecture
 
